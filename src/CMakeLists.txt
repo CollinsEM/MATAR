@@ -6,7 +6,13 @@ if (KOKKOS)
 endif ()
 
 
-add_library(matar matar.cpp matar.h)
+add_library(
+  matar 
+    matar.cpp 
+    matar.h 
+    matar_standard.h 
+    matar_kokkos.h
+)
 
 if (KOKKOS)
   set_target_properties(matar PROPERTIES COMPILE_DEFINITIONS HAVE_KOKKOS)
