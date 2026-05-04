@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdarg>
+#include <algorithm>
+
 namespace mtr {
 
 /// N-Dimensional Tensor
@@ -8,8 +11,8 @@ namespace mtr {
 /// accessors.
 ///
 /// @tparam T The type of the elements in the tensor.
-/// @tparam N The number of ranks in the tensor.
-template <typename T, int N>
+/// @tparam N The number of ranks in the tensor (default: 3).
+template <typename T, int N=3>
 class Tensor {
   /// Tensor order (rank)
   static constexpr size_t order_ = N;
@@ -29,7 +32,13 @@ public:
   Tensor () = delete;
   //------------------------------------------------------------------
   // Set dimensions from an array
-  Tensor (const size_t *dims);
+  Tensor (const size_t dims[N]) {
+    strides_[0] = 1;
+    for (int n=0; n<N; ++n) {
+      dims_[n] = dims[n];
+      strides[n+1] = strides[n]*dims[n];
+    }
+  }
   //------------------------------------------------------------------
   // --- 1D to 7D array ---
   Tensor (size_t dim0=1,
@@ -38,7 +47,28 @@ public:
           size_t dim3=1,
           size_t dim4=1,
           size_t dim5=1,
-          size_t dim6=1);
+          size_t dim6=1) {
+    switch(N) {
+    case 7:
+      dims_[6] = dim6;
+    case 6:
+      dims_[5] = dim5;
+    case 5:
+      dims_[4] = dim4;
+    case 4:
+      dims_[3] = dim3;
+    case 3:
+      dims_[2] = dim2;
+    case 2:
+      dims_[1] = dim1;
+    case 1:
+      dims_[0] = dim0;
+    }
+    strides_[0] = 1;
+    for (int n=0; n<N; ++n) {
+      strides[n+1] = strides[n]*dims[n];
+    }
+  }
   //------------------------------------------------------------------
   /// Construct the array, allocate storage.
   template<typename... dim_t>
@@ -67,8 +97,23 @@ public:
   }
   //------------------------------------------------------------------
   // Copy constructor (Shallow copy)
-  Tensor(const Tensor & temp);
-
+  Tensor(const Tensor & temp) {
+    std::copy(temp.dims_, temp.dims_+N, this->dims_);
+    std::copy(temp.strides_, temp.strides_+(N+1), this->strides_);
+    // Copy over shared pointer
+    array_ = temp.array_;
+  }
+  //------------------------------------------------------------------
+  // Copy constructor (Shallow copy of array slice)
+  Tensor(const Tensor<T,N+1> & temp, const size_t idx) {
+    assert(idx < temp.dims_[N]);
+    std::copy(temp.dims_, temp.dims_+N, this->dims_);
+    std::copy(temp.strides_, temp.strides_+(N+1), this->strides_);
+    // Initialize array to point to the current slice of data
+    array_ = temp.array_ + idx*strides_[N];
+  }
+  //------------------------------------------------------------------
+  ~Tensor() { }
   //------------------------------------------------------------------
   // Overload operator() for multi-dimensional array access
   template<typename... dim_t>
@@ -85,10 +130,20 @@ public:
     // Return the element
     return array_[idx];
   }
+  //------------------------------------------------------------------
+  // Overload operator[] for multi-dimensional array access
+  //
+  // Usage: A[k][j][i], where
+  //    i \in [0,dim[0]) increment stride[0],
+  //    j \in [0,dim[1]) increment stride[1],
+  //    etc.
+  Tensor<T,N-1> operator[](size_t idx0) const {
+    
+  }
     
   //------------------------------------------------------------------
   // Overload copy assignment operator
-  Tensor& operator= (const Tensor& temp) {
+  Tensor& operator=(const Tensor& temp) {
     // Do nothing if the assignment is of the form x = x
     if (this != &temp) {
       memcpy(dims_, temp.dims_, sizeof(dims_));
@@ -114,39 +169,7 @@ public:
 
 }; // End of Tensor
 
-//---carray class declarations---
-
-
-//return size
-template <typename T>
-inline size_t Tensor<T>::size() const {
-  return length_;
-}
-
-template <typename T>
-inline size_t Tensor<T>::dims(size_t i) const {
-  assert(i < order_ && "Tensor order (rank) does not match constructor, dim[i] does not exist!");
-  assert(i >= 0 && dims_[i]>0 && "Access to Tensor dims is out of bounds!");
-  return dims_[i];
-}
-
-template <typename T>
-inline size_t Tensor<T>::order() const {
-  return order_;
-}
-
-
-template <typename T>
-inline T* Tensor<T>::pointer() const{
-  return array_.get();
-}
-
-//destructor
-template <typename T>
-Tensor<T>::~Tensor() {}
-
-//----endof carray class definitions----
-
+//---tensor class declarations---
 
 //6. ViewTensor
 // indicies are [0:N-1]
